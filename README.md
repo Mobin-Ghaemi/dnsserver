@@ -1,0 +1,257 @@
+# Orbit DNS — پنل مدیریت DNS با Django
+
+وب‌اپ فارسی و راست‌به‌چپ برای مدیریت دامنه‌ها و رکوردهای DNS، با رابط روشن/تیره و نمایش مناسب موبایل. این پروژه **پنل مدیریت** است؛ پاسخ به درخواست‌های DNS روی پورت 53 بر عهدهٔ PowerDNS Authoritative روی سرور شماست.
+
+## امکانات آماده
+
+- ورود با نام کاربری و رمز عبور، خروج با POST، تغییر رمز و مدیریت کاربران از Django Admin؛ ثبت‌نام عمومی ندارد.
+- محدودسازی ورود ناموفق با django-axes: ۵ تلاش ناموفق، محدودیت ۱۵ دقیقه بر اساس نام کاربری یا IP.
+- فضای مستقل هر کاربر؛ تمام عملیات دامنه، رکورد، خروجی و تاریخچه، مالکیت را بررسی می‌کنند. مدیر هم در کنسول فقط دامنه‌های خودش را می‌بیند.
+- افزودن و ویرایش دامنه و رکورد در مودال، نمایش خطا در همان پنجره، راهنمای NS بعد از ساخت دامنه؛ جست‌وجو، فیلتر، صفحه‌بندی و حذف تأییدشده.
+- شناسایی خودکار دامنه‌ها و رکوردهای موجود در PowerDNS؛ دریافت دوره‌ای بدون تغییر تنظیمات DNS و با حفظ پیش‌نویس‌های پنل.
+- رکوردهای `A`, `AAAA`, `CNAME`, `MX`, `TXT`, `NS`, `SRV`, `CAA`, `PTR` با ویرایش، حذف و فعال/غیرفعال‌کردن.
+- اعتبارسنجی IP، دامنهٔ IDNA، مالک رکورد، CNAME، رکورد تکراری، Null MX و TTL یکسان داخل هر RRset.
+- داشبورد با آمار واقعی پایگاه داده، تاریخچهٔ تغییرات، خروجی فایل BIND Zone و راهنمای داخل پنل.
+- آداپتور واقعی PowerDNS HTTP API؛ ذخیرهٔ محلی و انتشار دستی، ثبت خطا، بررسی نسخه و قفل کوتاه عملیات.
+- PostgreSQL برای استقرار، SQLite برای توسعه، Gunicorn، WhiteNoise، Docker Compose، نمونهٔ Nginx و systemd.
+- هیچ اطلاعات ورود ثابت یا کاربر پیش‌فرضی داخل سورس وجود ندارد. کلید PowerDNS فقط در محیط سرور می‌ماند.
+
+## راه‌اندازی سریع روی کامپیوتر
+
+Python 3.12 یا 3.13 پیشنهاد می‌شود. نسخهٔ تست‌شدهٔ Django و همهٔ وابستگی‌های اجرا در `requirements.txt` قفل شده‌اند.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python -c 'import secrets; print(secrets.token_urlsafe(48))'
+# خروجی دستور بالا را به عنوان DJANGO_SECRET_KEY در .env قرار دهید.
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver 127.0.0.1:8000
+```
+
+آدرس: <http://127.0.0.1:8000>. ابتدا با کاربری که ساخته‌اید وارد شوید. رمز انتخابی در فرم‌های برنامه حداقل ۱۲ کاراکتر است. برای کاربران دیگر، از `/admin/` استفاده کنید؛ کاربر عادی به `is_staff` نیاز ندارد. نام دامنه بین تمام کاربران یکتا است، چون یک Zone در PowerDNS نمی‌تواند هم‌زمان متعلق به دو کاربر باشد.
+
+برای اجرای روزمرهٔ محلی، می‌توانید فقط `./run.sh` را اجرا کنید. این اسکریپت همیشه از پایتون `.venv` همین پروژه استفاده می‌کند و اگر محیط یا وابستگی‌ها موجود نباشند، آن‌ها را آماده می‌کند. برای استقرار واقعی همچنان از Gunicorn طبق بخش استقرار استفاده کنید.
+
+اگر خطای `ModuleNotFoundError: No module named 'axes'` دیدید، معمولاً برنامه با پایتون سراسری اجرا شده است. به‌جای نصب بسته‌ها روی پایتون سیستم، `./run.sh` یا `.venv/bin/python manage.py runserver` را اجرا کنید. برای نصب مجدد وابستگی‌های پروژه از `.venv/bin/python -m pip install -r requirements.txt` استفاده کنید.
+
+دادهٔ نمایشی اختیاری، فقط با `DJANGO_DEBUG=True` و فقط برای یک کاربر موجود:
+
+```bash
+python manage.py seed_demo --username YOUR_USERNAME
+```
+
+دامنه‌های `.example` و IPهای مستنداتی می‌سازد؛ تمام آن‌ها پیش‌نویس‌اند و به DNS ارسال نمی‌شوند. روی سرور واقعی از seed استفاده نکنید و پایگاه دادهٔ محلی را به سرور نبرید. نصب توسعه‌ای ایجادشده در این پوشه ممکن است دادهٔ نمونه داشته باشد؛ `data/` و `.env` عمداً در Git و Docker نادیده گرفته می‌شوند.
+
+## قرارداد ذخیره و انتشار
+
+1. ساخت/ویرایش/حذف/غیرفعال‌کردن رکورد فقط داده‌های پنل را تغییر می‌دهد و شمارهٔ نسخهٔ دامنه افزایش می‌یابد.
+2. دکمهٔ **انتشار تغییرات**، پس از بررسی نسخه، داده‌ها را از سمت Django به PowerDNS می‌فرستد. در حالت بدون API، دکمه غیرفعال است.
+3. پنل ابتدا Zone را با `kind=Native`، نام‌سرورها و `soa_edit_api=INCREASE` ایجاد می‌کند. رکوردهای SOA و شمارهٔ سریال عملیاتی را PowerDNS مدیریت می‌کند.
+4. دامنه‌های ساخته‌شده توسط پنل با `account=orbit-<external_id>` شناخته می‌شوند. دامنه‌های شناسایی‌شده از سرور، به شناسهٔ endpoint و account فعلی همان Zone متصل می‌شوند و account آن‌ها تغییر نمی‌کند. تغییر ناگهانی سرور، account یا رکوردهای سرور نسبت به آخرین snapshot، انتشار را متوقف می‌کند.
+5. هنگام انتشار، رکوردهای پشتیبانی‌شدهٔ Zone تحت مالکیت پنل، دقیقاً با وضعیت پنل تطبیق داده می‌شوند؛ RRsetهای حذف‌شده با `DELETE` و بقیه با `REPLACE` اعمال می‌شوند. **ویرایش دستی این رکوردها در PowerDNS در انتشار بعدی بازنویسی خواهد شد.** انواع خارج از فهرست و SOA دست‌نخورده می‌مانند.
+6. برای دامنه‌های جدید، NS ریشه از `DNS_NAMESERVERS` می‌آید. اگر این مقدار هنوز نمونه باشد و همهٔ دامنه‌های شناسایی‌شدهٔ همین endpoint حداقل دو NS مشترک داشته باشند، همان مجموعه برای دامنهٔ جدید پیشنهاد می‌شود؛ در صورت اختلاف، تنظیم صریح لازم است. NS ریشهٔ دامنه‌های واردشده از سرور حفظ می‌شود و با پیش‌فرض پنل بازنویسی نمی‌شود. NS فرم برای واگذاری زیردامنه است.
+7. خاموش‌کردن یک رکورد آن را با `disabled=true` به PowerDNS می‌فرستد. خروجی Zone نیز رکورد خاموش را به‌صورت کامنت نگه می‌دارد.
+8. حذف دامنه، با تایپ کامل نام، بلافاصله حذف Zone از PowerDNS را هم انجام می‌دهد. اگر سرویس در دسترس نباشد، حذف محلی انجام نمی‌شود تا امکان تلاش مجدد حفظ شود. حذف رکورد تا انتشار بعدی روی DNS عمومی اثر ندارد.
+9. در زمان انتشار/حذف، تغییرات همان دامنه موقتاً قفل می‌شوند؛ قفل پس از عملیات آزاد و در صورت قطع فرایند پس از ۳ دقیقه منقضی می‌شود. timeout شبکه وجود دارد و انتشار هم‌زمان یک Zone پذیرفته نمی‌شود. PostgreSQL در تولید برای قفل سطرها الزامی است.
+
+«منتشر شده» یعنی نسخهٔ فعلی در سرور DNS ثبت شده یا آخرین وضعیت آن از سرور دریافت شده؛ به معنی تأیید delegation، پاسخ از همهٔ نام‌سرورها یا پایان کش اینترنت نیست. حالت اتصال «پیکربندی شده» هم صرفاً وجود تنظیمات است؛ دکمهٔ آزمایش اتصال، API را واقعاً فراخوانی می‌کند.
+
+## اتصال به PowerDNS
+
+برای بخش DNS از **PowerDNS Authoritative** استفاده کنید، نه PowerDNS Recursor. API باید دسترسی نوشتن و backend قابل ویرایش، مانند gpgsql یا gsqlite3، داشته باشد. راه‌اندازی خود سرویس DNS بخشی از وب‌اپ نیست؛ کدکس سرور باید آن را با توجه به سیستم موجود آماده کند.
+
+نمونهٔ تنظیمات روی میزبان، با پنل native و API محلی:
+
+```ini
+# pdns.conf — علاوه بر تنظیمات backend واقعی شما
+api=yes
+api-key=REPLACE_WITH_A_LONG_RANDOM_SECRET
+webserver=yes
+webserver-address=127.0.0.1
+webserver-port=8081
+webserver-allow-from=127.0.0.1,::1
+```
+
+متغیرهای پنل:
+
+```dotenv
+PDNS_API_URL=http://127.0.0.1:8081/api/v1
+PDNS_API_KEY=THE_SAME_RANDOM_SECRET
+PDNS_SERVER_ID=localhost
+DNS_NAMESERVERS=ns1.your-domain.tld,ns2.your-domain.tld
+```
+
+`PDNS_API_URL` باید به `/api/v1` ختم شود، بدون `/servers/localhost`، پارامتر query یا اطلاعات ورود داخل URL. کلید را از مرورگر یا جاوااسکریپت به PowerDNS ارسال نکنید. API را روی اینترنت عمومی باز نکنید؛ برای شبکهٔ غیرمحلی از شبکهٔ خصوصی و HTTPS معتبر استفاده کنید. redirectهای API دنبال نمی‌شوند و اعتبارسنجی TLS فعال است.
+
+**نکتهٔ Docker:** داخل کانتینر `127.0.0.1` به خود پنل اشاره می‌کند. اگر PowerDNS در کانتینر دیگری است، هر دو را در شبکهٔ خصوصی مشترک قرار دهید، آدرس مثلاً `http://pdns:8081/api/v1` را بدهید و API را فقط برای subnet همان شبکه مجاز کنید. اگر DNS روی میزبان Linux است، مسیر gateway میزبان را آگاهانه تنظیم و API را فقط روی رابط خصوصی مورد نیاز bind کنید. نمونهٔ loopback بالا از داخل کانتینر قابل دسترسی نیست. صرف تغییر URL مشکل bind/firewall را حل نمی‌کند.
+
+در پنل «اتصال سرور»، با کاربر مدیر «آزمایش اتصال واقعی» را بزنید. سپس یک دامنه و رکورد آزمایشی متعلق به خودتان بسازید و منتشر کنید.
+
+### شناسایی خودکار روی همان سرور
+
+پنل سرویس PowerDNS Authoritative همان میزبان را از API می‌خواند. در نصب مستقیم، اگر `PDNS_API_URL` و `PDNS_API_KEY` هر دو خالی باشند، فایل‌های خواندنی `/etc/powerdns/pdns.conf` یا `/etc/pdns/pdns.conf` و فایل‌های `.conf` در `include-dir` بررسی می‌شوند. مسیر سفارشی را در `PDNS_CONFIG_FILE` قرار دهید. API باید از قبل فعال باشد؛ پنل فایل تنظیمات سیستم را تغییر نمی‌دهد، PowerDNS را نصب نمی‌کند و برای خواندن تنظیمات نیازمند دسترسی معتبر کاربر سرویس است. فایل حاوی رازها را عمومی نکنید؛ تنظیم صریح متغیرهای محیطی جایگزین مناسبی است.
+
+اگر فقط `PDNS_API_KEY` مشخص باشد، URL محلی `http://127.0.0.1:8081/api/v1` انتخاب می‌شود. تنظیم صریح URL و کلید بر شناسایی فایل محلی اولویت دارد. در Docker، شبکه و URL سرویس DNS باید تنظیم شوند؛ وجود PowerDNS روی میزبان به‌تنهایی loopback کانتینر را به آن متصل نمی‌کند.
+
+با بازکردن داشبورد، دامنه‌ها یا صفحهٔ دامنه توسط مدیر، مرورگر به‌صورت خودکار درخواست POST محافظت‌شده با CSRF می‌فرستد. در صورت بازبودن صفحه، هر ۶۰ ثانیه بررسی تکرار می‌شود؛ هنگام بازبودن مودال، بررسی جدید آغاز نمی‌شود. دکمهٔ «بررسی اکنون» هم در دسترس است. `DNS_AUTO_DISCOVERY=False` فقط بررسی خودکار مرورگر را خاموش می‌کند؛ بررسی دستی همچنان ممکن است.
+
+هر نوبت حداکثر ۲۰ Zone و حدود ۴۰ ثانیه کار شبکه انجام می‌دهد؛ ادامهٔ فهرست در نوبت بعد بررسی می‌شود. وضعیت و قفل بررسی بین workerها در DB مشترک‌اند. برای بررسی در زمانی که پنل باز نیست، دستور زیر را با cron یا timer هر دقیقه اجرا کنید:
+
+```bash
+.venv/bin/python manage.py discover_dns --username ADMIN_USERNAME
+# در Docker:
+docker compose exec -T web python manage.py discover_dns --username ADMIN_USERNAME
+```
+
+برای دامنه‌های جدیدِ شناسایی‌شده، مالک پیش‌فرض مدیر شروع‌کنندهٔ بررسی است. با `DNS_DISCOVERY_OWNER=mobin` می‌توانید یک کاربر فعال staff را به‌صورت ثابت تعیین کنید. دامنه‌ای که قبلاً متعلق به کاربر دیگری در پنل است جابه‌جا نمی‌شود. کاربران عادی امکان دریافت فهرست سراسری سرور را ندارند.
+
+شناسایی فقط GET به PowerDNS می‌فرستد. رکوردهای A/AAAA/MX/TXT/SRV/CNAME/CAA/NS/PTR، TTL و وضعیت disabled خوانده می‌شوند؛ NS ریشه جدا نگهداری می‌شود و سایر انواع، مثل TLSA، فقط برای نمایش حفظ می‌شوند. TXT چندقسمتی به مقدار قابل ویرایش تبدیل می‌شود. TTL صفرِ موجود نیز پذیرفته می‌شود. Zone ثانویه به‌صورت فقط‌خواندنی وارد می‌شود. اگر دریافت یا اعتبارسنجی رکوردهای یک Zone کامل نباشد، جایگزینی محلی آن Zone به‌طور کامل rollback می‌شود و نام آن در نتیجهٔ بررسی گزارش می‌شود.
+
+اگر Zone روی سرور حذف شود، دادهٔ پنل حذف نمی‌شود و پیام بررسی نمایش داده می‌شود. اگر پنل پیش‌نویس داشته باشد، دریافت خودکار آن را بازنویسی نمی‌کند. اگر هم‌زمان سرور هم تغییر کرده باشد، انتشار تا بررسی اختلاف متوقف می‌شود. از «بررسی و دریافت نسخهٔ سرور» در صفحهٔ دامنه می‌توانید، با تایپ نام دامنه، آگاهانه پیش‌نویس را کنار بگذارید و نسخهٔ سرور را دریافت کنید. این کار هم هیچ تغییری در PowerDNS ایجاد نمی‌کند.
+
+برای بازیابی، backup دیتابیس پنل، تنظیمات endpoint و دیتابیس DNS را با هم حفظ کنید. در صورت بازیابی دیتابیس قدیمی، پیش از انتشار، وضعیت فعلی سرور را دریافت و بررسی کنید؛ `account` و شناسه‌های محلی را بدون نیاز تغییر ندهید. اگر نتیجهٔ انتشار به دلیل قطع شبکه نامشخص شد، ابتدا وضعیت سرور را دریافت کنید؛ کنترل snapshot از بازنویسی ناآگاهانه جلوگیری می‌کند.
+
+## استقرار با Docker Compose
+
+این Compose فقط **وب‌اپ و PostgreSQL پنل** را اجرا می‌کند. سرویس PowerDNS و دیتابیس آن عمداً جدا هستند و باید روی سرور متصل شوند.
+
+```bash
+cp .env.example .env
+# مقادیر بخش زیر را با اطلاعات واقعی و رازهای تصادفی پر کنید.
+docker compose up -d --build
+docker compose exec web python manage.py createsuperuser
+docker compose exec web python manage.py check --deploy --fail-level ERROR
+docker compose ps
+```
+
+مقادیر لازم در `.env` تولید:
+
+```dotenv
+DJANGO_DEBUG=False
+DJANGO_SECRET_KEY=REPLACE_WITH_AT_LEAST_50_RANDOM_CHARACTERS
+DJANGO_ALLOWED_HOSTS=dns-panel.your-domain.tld,127.0.0.1,localhost
+DJANGO_CSRF_TRUSTED_ORIGINS=https://dns-panel.your-domain.tld
+DJANGO_TRUST_PROXY=True
+DJANGO_SECURE_SSL_REDIRECT=True
+POSTGRES_DB=orbit
+POSTGRES_USER=orbit
+POSTGRES_PASSWORD=REPLACE_WITH_A_RANDOM_DATABASE_PASSWORD
+# POSTGRES_HOST در Compose به db تنظیم می‌شود.
+PDNS_API_URL=http://pdns:8081/api/v1
+PDNS_API_KEY=REPLACE_WITH_THE_PRIVATE_API_KEY
+PDNS_SERVER_ID=localhost
+DNS_NAMESERVERS=ns1.your-domain.tld,ns2.your-domain.tld
+```
+
+مقدار `http://pdns:8081` فقط نمونهٔ یک سرویس قابل دسترسی در شبکهٔ خصوصی است؛ در Compose حاضر سرویسی به نام `pdns` ساخته نشده است. آن را با مقصد واقعی یا شبکهٔ مشترک خود تطبیق دهید.
+
+پورت پنل فقط روی `127.0.0.1:8000` میزبان منتشر می‌شود. Nginx را روی میزبان اجرا کنید. در `deploy/nginx.conf` نام میزبان و مسیر گواهی معتبر را تغییر دهید؛ ابتدا TLS را راه‌اندازی کنید، سپس `nginx -t` و reload. بهتر است دامنهٔ پنل در DNS مستقل و از قبل فعال باشد تا راه‌اندازی پنل به خودش وابسته نشود.
+
+با `DJANGO_TRUST_PROXY=True` برنامه به `X-Forwarded-Proto` و برای محدودسازی ورود به `X-Real-IP` اعتماد می‌کند. این گزینه فقط وقتی درست است که دسترسی مستقیم به Gunicorn بسته باشد و reverse proxy این هدرها را **بازنویسی** کند؛ نمونهٔ Nginx همین کار را می‌کند. در زنجیرهٔ CDN/Proxy، IP واقعی را ابتدا در Nginx با trusted ranges مشخص اصلاح کنید. در غیر این صورت اعتماد به هدرهای ارسالی کاربر خطرناک است.
+
+HSTS برای نام میزبان پنل فعال است. دو گزینهٔ شامل‌کردن زیردامنه‌ها و preload به‌صورت پیش‌فرض خاموش‌اند؛ بنابراین check --deploy دو هشدار سیاست HSTS می‌دهد. پس از اطمینان از HTTPS همهٔ زیردامنه‌های تحت آن میزبان، می‌توانید `DJANGO_HSTS_INCLUDE_SUBDOMAINS=True` و در صورت تصمیم برای preload، `DJANGO_HSTS_PRELOAD=True` را فعال کنید.
+
+فایل‌های استاتیک را WhiteNoise سرو می‌کند و ورود نیازمند HTTPS است. `/healthz/` فقط سلامت وب‌اپ و اتصال DB را می‌سنجد؛ به API DNS وابسته نیست و از redirect HTTPS مستثناست تا healthcheck داخلی کار کند. API و رمزها هرگز در healthcheck خروجی داده نمی‌شوند.
+
+ورود به پنل پس از استقرار: `https://dns-panel.your-domain.tld/login/`.
+
+## استقرار بدون Docker
+
+```bash
+# پروژه در /opt/orbit-dns؛ یک کاربر سیستمی orbit با دسترسی محدود بسازید.
+cd /opt/orbit-dns
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+# .env تولید را با PostgreSQL قابل دسترسی و TLS تنظیم کنید.
+.venv/bin/python manage.py migrate
+.venv/bin/python manage.py collectstatic --noinput
+.venv/bin/python manage.py createsuperuser
+.venv/bin/python manage.py check --deploy --fail-level ERROR
+# مسیرها و مالکیت را با نصب واقعی تطبیق دهید.
+sudo cp deploy/orbit-dns.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now orbit-dns
+```
+
+پیش از start، پوشهٔ `data/` باید برای کاربر `orbit` قابل نوشتن و `.env` برای او خواندنی باشد. کد و staticfiles فقط خواندنی کافی‌اند. نمونهٔ systemd اجازهٔ نوشتن را به `data/` محدود می‌کند. Nginx/TLS را مانند بخش Docker آماده کنید. برای تولید، متغیرهای PostgreSQL را تنظیم کنید؛ SQLite فقط برای توسعه است.
+
+## عمومی‌شدن DNS: کارهایی که وب‌اپ انجام نمی‌دهد
+
+- سرویس Authoritative باید روی IP عمومی واقعی و هر دو پروتکل **UDP و TCP پورت 53** پاسخ دهد؛ firewall و تداخل systemd-resolved/سرویس‌های دیگر بررسی شود. API 8081 خصوصی باقی بماند.
+- حداقل دو نام‌سرور واقعی، ترجیحاً روی دو میزبان/شبکهٔ مستقل، نیاز است. این پنل فعلاً **یک endpoint PowerDNS** را منتشر می‌کند؛ تکثیر دیتابیس Native، secondary/AXFR/NOTIFY یا انتشار روی چند ارائه‌دهنده پیاده‌سازی نشده و باید جداگانه طراحی شود. صرف واردکردن دو NS باعث تکثیر رکوردها نمی‌شود.
+- برای نام‌سرورها A/AAAA معتبر بسازید. اگر NS زیرمجموعهٔ همان دامنه است، Glue/Child Nameserver را در ثبت‌کننده بسازید و سپس NS دامنه را تغییر دهید.
+- اگر دامنه قبلاً DNSSEC داشته و DS در ثبت‌کننده ثبت است، پیش از جابه‌جایی وضعیت DS/امضا را هماهنگ کنید؛ DS قدیمی با Zone بدون امضای سازگار باعث SERVFAIL می‌شود. این نسخه مدیریت DNSSEC/DS، کلید و rollover ندارد.
+- برای PTR، reverse zone باید توسط صاحب IP واگذار شده باشد؛ ساخت PTR داخل دامنهٔ عادی به‌تنهایی reverse DNS عمومی را تنظیم نمی‌کند.
+- SSL پنل، بکاپ، پایش و سرویس مستقل DNS مسئولیت استقرار است. پنل resolver عمومی، CDN proxy یا ثبت‌کنندهٔ دامنه نیست. ورود فایل Zone از دیسک، REST API عمومی، MFA و بازیابی رمز ایمیلی در این نسخه وجود ندارد؛ بازیابی رمز با مدیر سرور است.
+
+بررسی پاسخ پس از انتشار:
+
+```bash
+dig @YOUR_DNS_SERVER_IP your-domain.tld SOA +norecurse
+dig @YOUR_DNS_SERVER_IP your-domain.tld A +norecurse
+dig @YOUR_DNS_SERVER_IP your-domain.tld A +tcp +norecurse
+dig +trace your-domain.tld NS
+```
+
+همین تست‌ها را برای نام‌سرور دوم و با IPv6 در صورت اعلام AAAA هم انجام دهید.
+
+## تست و نگهداری
+
+```bash
+source .venv/bin/activate
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python manage.py test
+python manage.py collectstatic --noinput
+```
+
+تست‌ها اعتبارسنجی DNS، جداسازی کاربران، CSRF، ورود/قفل حساب، گردش CRUD، خروجی قابل parse و قرارداد PowerDNS با API شبیه‌سازی‌شده را بررسی می‌کنند؛ سرویس DNS واقعی را نصب نمی‌کنند و پاسخ عمومی را تأیید نمی‌کنند.
+
+پشتیبان دیتابیس پنل در Docker:
+
+```bash
+mkdir -p backups
+chmod 700 backups
+docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backups/orbit.sql
+chmod 600 backups/orbit.sql
+# backup جداگانهٔ دیتابیس PowerDNS، تنظیمات، TLS و .env را هم در محل امن نگه دارید.
+```
+
+backupها را خارج از webroot و مخزن سورس نگه دارید. قبل از upgrade، migration و تغییر DNS backup بگیرید و restore را در محیط جدا تست کنید. برای نسخهٔ جدید کد `docker compose up -d --build` را اجرا کنید؛ entrypoint migration و collectstatic را انجام می‌دهد. پیش از اجرای چند replica، migration را به job مستقل تبدیل کنید؛ نمونهٔ Compose برای یک replica وب است.
+
+رفع قفل یا بازیابی رمز، با دسترسی مجاز روی سرور:
+
+```bash
+python manage.py axes_reset_username YOUR_USERNAME
+python manage.py axes_reset_ip CLIENT_IP
+python manage.py changepassword YOUR_USERNAME
+```
+
+چون lock بر اساس نام کاربری **یا IP** است، در صورت قفل هر دو، هر دو را reset کنید. در Docker قبل از دستورها `docker compose exec web` بگذارید. لاگ برنامه `docker compose logs --tail=100 web` و خطاهای API در لاگ سرویس PowerDNS بررسی می‌شوند. پیام مرورگر عمداً پاسخ خام یا کلید API را نمایش نمی‌دهد. در تولید `DEBUG=False` بماند.
+
+## نقشهٔ پروژه
+
+```text
+config/                 تنظیمات Django، URL و WSGI
+dnsmanager/models.py    دامنه، رکورد، تاریخچه
+dnsmanager/dns.py       اعتبارسنجی و تبدیل به متن استاندارد DNS
+dnsmanager/services.py  تغییر نسخه، قفل و انتشار
+dnsmanager/discovery.py شناسایی و دریافت دامنه‌های موجود
+config/local_dns.py     تشخیص تنظیمات PowerDNS محلی
+dnsmanager/powerdns.py  کلاینت API و تطبیق RRsetها
+dnsmanager/views.py     صفحات و عملیات با بررسی مالکیت
+dnsmanager/tests.py     تست‌های برنامه
+templates/              رابط فارسی و صفحات ورود
+static/                 CSS، JS و فونت محلی
+deploy/                 Nginx، systemd و entrypoint
+SERVER_HANDOFF.md       متن آمادهٔ تحویل به کدکس روی سرور
+```
+
+فونت Vazirmatn با مجوز SIL Open Font License در `static/fonts/OFL.txt` قرار دارد. رابط بدون وابستگی JavaScript خارجی کار می‌کند؛ جست‌وجو، فرم‌ها و عملیات اصلی حتی بدون JS نیز از طریق Django انجام می‌شوند.
+
+مراجع اصلی: [پشتیبانی نسخه‌های Django](https://www.djangoproject.com/download/)، [PowerDNS HTTP API](https://doc.powerdns.com/authoritative/http-api/index.html)، [API مدیریت Zone و RRset](https://doc.powerdns.com/authoritative/http-api/zone.html).
+# dnsserver
