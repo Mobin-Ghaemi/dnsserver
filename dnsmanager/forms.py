@@ -1,6 +1,16 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 from .models import Zone, Record
+from .dns import zone_name
+
+
+class DomainCheckForm(forms.Form):
+    name = forms.CharField(label='نام دامنه', max_length=253, widget=forms.TextInput(attrs={
+        'class': 'input', 'dir': 'ltr', 'placeholder': 'example.com', 'autocomplete': 'off', 'autocapitalize': 'none'}))
+    add_on_match = forms.BooleanField(label='اگر NSها مطابق بودند، به دامنه‌های من اضافه شود', required=False)
+
+    def clean_name(self):
+        return zone_name(self.cleaned_data['name'])
 
 
 class StyledForm:
@@ -62,7 +72,7 @@ class RecordForm(StyledForm, forms.ModelForm):
         self.style()
 
 
-class DomainCheckForm(StyledForm, forms.Form):
+class DomainLookupForm(StyledForm, forms.Form):
     name = forms.CharField(label='نام دامنه', max_length=253,
                            widget=forms.TextInput(attrs={'placeholder': 'example.com'}))
 

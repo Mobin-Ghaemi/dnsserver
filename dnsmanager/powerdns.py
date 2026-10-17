@@ -91,7 +91,7 @@ class PowerDNS:
             if zone.source == 'server':
                 raise ProviderError('این دامنه دیگر روی سرور وجود ندارد؛ برای بازسازی آن ابتدا وضعیت سرور را بررسی کنید.')
             self.request('POST', '/zones', payload={
-                'name': zone.name + '.', 'kind': 'Native', 'nameservers': checked_nameservers(),
+                'name': zone.name + '.', 'kind': 'Native', 'nameservers': checked_nameservers(zone.nameservers),
                 'account': f'orbit-{zone.external_id}', 'soa_edit_api': 'INCREASE',
             })
             remote = self.owned_zone(zone)
@@ -102,7 +102,7 @@ class PowerDNS:
         return remote
 
     def publish(self, zone, records):
-        nameservers = checked_nameservers() if zone.source == 'local' else []
+        nameservers = checked_nameservers(zone.nameservers) if zone.source == 'local' else []
         remote = self.ensure_zone(zone)
         self.check_snapshot(zone, remote)
         if zone.is_readonly or remote.get('kind', '').lower() in ('slave', 'secondary', 'consumer'):
@@ -158,10 +158,10 @@ def provider_identity():
     return hashlib.sha256(base.encode()).hexdigest()
 
 
-def checked_nameservers():
+def checked_nameservers(values=None):
     from .configuration import default_nameservers
     try:
-        names = list(dict.fromkeys(hostname(ns) + '.' for ns in default_nameservers()))
+        names = list(dict.fromkeys(hostname(ns) + '.' for ns in (values if values is not None else default_nameservers())))
     except ValidationError:
         raise ProviderError('DNS_NAMESERVERS معتبر نیست.') from None
     if len(names) < 2 or any(ns.endswith('.example.net.') or ns.endswith('.example.com.') for ns in names):

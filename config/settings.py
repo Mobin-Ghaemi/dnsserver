@@ -115,3 +115,11 @@ PDNS_TIMEOUT = 10
 DNS_AUTO_DISCOVERY = flag('DNS_AUTO_DISCOVERY', True)
 DNS_DISCOVERY_OWNER = os.getenv('DNS_DISCOVERY_OWNER', '')
 DNS_DISCOVERY_INTERVAL = 60
+# Independent recursive resolvers avoid accidentally checking this server's own
+# authoritative answer instead of public DNS. No user-supplied network targets.
+DNS_CHECK_RESOLVERS = ['1.1.1.1', '8.8.8.8']
+DNS_CHECK_NAMESERVERS = [s.strip().rstrip('.').lower() + '.' for s in os.getenv('DNS_CHECK_NAMESERVERS', '').split(',') if s.strip()]
+DNS_CHECK_NS_GROUPS = [
+    [s.strip().rstrip('.').lower() + '.' for s in group.split(',') if s.strip()]
+    for group in os.getenv('DNS_CHECK_NS_GROUPS', 'ns1.melkata.ir,ns2.melkata.ir;ns1.ezfile.ir,ns2.ezfile.ir').split(';') if group.strip()
+]

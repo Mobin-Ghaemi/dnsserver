@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Q
@@ -12,7 +14,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from .dns import RECORD_TYPES
-from .forms import ZoneForm, RecordForm
+from .forms import ZoneForm, RecordForm, DomainCheckForm
 from .models import Zone, Record, Activity
 from .powerdns import PowerDNS, ProviderError
 from .services import ZoneBusy, audit, changed, editable_zone, publish_zone, delete_zone
@@ -54,6 +56,7 @@ def zone_list(request):
     zones = Zone.objects.filter(owner=request.user).annotate(record_total=Count('records')).order_by('-updated_at', '-pk')
     q = request.GET.get('q', '').strip()[:253]
     state = request.GET.get('status', '')
+    ns_state = request.GET.get('ns', '')
     if q:
         zones = zones.filter(Q(name__icontains=q) | Q(description__icontains=q))
     if state == 'published':
@@ -62,8 +65,19 @@ def zone_list(request):
         zones = zones.exclude(revision=F('published_revision')).filter(last_error='')
     elif state == 'error':
         zones = zones.exclude(last_error='')
+    if ns_state in ('matched', 'mismatch', 'propagating', 'unavailable', 'not_found'):
+        zones = zones.filter(ns_check__status=ns_state)
+    check_result = request.session.pop('domain_check_result', None)
+    try:
+        from .domain_check import expected_nameservers, expected_groups
+        expected_ns = expected_nameservers()
+        ns_groups = expected_groups()
+    except ValidationError:
+        expected_ns = []
+        ns_groups = []
     return render(request, 'dnsmanager/zones.html', {'page_obj': Paginator(zones, 12).get_page(request.GET.get('page')), 'q': q, 'state': state,
-                                                  'total_zones': Zone.objects.filter(owner=request.user).count()})
+                                                  'total_zones': Zone.objects.filter(owner=request.user).count(), 'ns_state': ns_state,
+                                                  'check_form': DomainCheckForm(initial={'add_on_match': True}), 'check_result': check_result, 'expected_ns': expected_ns, 'ns_groups': ns_groups})
 
 
 @login_required
@@ -106,15 +120,77 @@ def zone_detail(request, pk):
     q = request.GET.get('q', '').strip()[:253]
     kind = request.GET.get('type', '')
     if q:
-        records = records.filter(Q(name__icontains=q) | Q(content__icontains=q))
+        relative_q = q.rstrip('.').lower()
+        if relative_q == zone.name:
+            relative_q = '@'
+        elif relative_q.endswith('.' + zone.name):
+            relative_q = relative_q[:-(len(zone.name) + 1)]
+        records = records.filter(Q(name__icontains=relative_q) | Q(content__icontains=q))
     if kind in RECORD_TYPES:
         records = records.filter(type=kind)
+    enabled = request.GET.get('enabled', '')
+    if enabled in ('1', '0'):
+        records = records.filter(enabled=enabled == '1')
     return render(request, 'dnsmanager/zone_detail.html', {
         'zone': zone, 'page_obj': Paginator(records, 20).get_page(request.GET.get('page')), 'q': q, 'kind': kind,
         'record_types': RECORD_TYPES, 'record_count': zone.records.count(), 'enabled_count': zone.records.filter(enabled=True).count(),
         'activities': zone.activity_set.filter(user=request.user)[:6],
         'nameservers': zone.nameservers, 'show_setup': request.GET.get('setup') == '1',
+        'enabled_filter': enabled,
+        'type_counts': zone.records.values('type').annotate(total=Count('pk')).order_by('type'),
+        'host_count': zone.records.values('name').distinct().count(),
     })
+
+
+@login_required
+def record_detail(request, pk, record_pk):
+    zone = owned(request, pk)
+    record = get_object_or_404(Record, pk=record_pk, zone=zone)
+    context = {'zone': zone, 'record': record}
+    if modal_request(request):
+        return JsonResponse({'html': render_to_string('dnsmanager/record_details.html', context, request=request)})
+    return render(request, 'dnsmanager/record_details_page.html', context)
+
+
+@login_required
+@require_POST
+def domain_check(request, pk=None):
+    zone = owned(request, pk) if pk else None
+    form = DomainCheckForm({'name': zone.name} if zone else request.POST)
+    if not form.is_valid():
+        error = ' '.join(str(error) for errors in form.errors.values() for error in errors)
+        result = {'error': error}
+        status = 400
+    elif not cache.add(f'ns-check-user:{request.user.pk}', True, 5):
+        result, status = {'error': 'لطفاً چند ثانیه تا بررسی بعدی صبر کنید.'}, 429
+    else:
+        try:
+            from .domain_check import check_domain
+            result = check_domain(form.cleaned_data['name'])
+            with transaction.atomic():
+                existing = Zone.objects.filter(name=result['domain']).first()
+                if existing and existing.owner_id == request.user.pk:
+                    Zone.objects.filter(pk=existing.pk, owner=request.user).update(ns_check=result)
+                    result = dict(result, zone_url=reverse('zone_detail', args=[existing.pk]))
+                elif result['status'] == 'matched' and form.cleaned_data['add_on_match']:
+                    if existing:
+                        result = dict(result, add_note='این دامنه در پنل قابل افزودن نیست؛ با مدیر سامانه هماهنگ کنید.')
+                    else:
+                        created = Zone.objects.create(owner=request.user, name=result['domain'], ns_check=result,
+                                                      detected_nameservers=result['found'], description='افزوده‌شده پس از تطبیق NS عمومی')
+                        audit(request.user, created, 'افزودن دامنه', 'هر دو NS عمومی با نام‌سرورهای تنظیم‌شده مطابق بودند؛ دامنه به‌صورت پیش‌نویس اضافه شد.')
+                        result = dict(result, added=True, zone_url=reverse('zone_detail', args=[created.pk]))
+            status = 200
+        except ValidationError as error:
+            result, status = {'error': ' '.join(error.messages)}, 400
+        except IntegrityError:
+            result, status = {'error': 'وضعیت دامنه هم‌زمان تغییر کرد؛ فهرست را تازه کنید.'}, 409
+    if request.headers.get('Accept') == 'application/json':
+        if result.get('added'):
+            request.session['domain_check_result'] = result
+        return JsonResponse({'html': render_to_string('dnsmanager/check_result.html', {'result': result}, request=request), 'result': result}, status=status)
+    request.session['domain_check_result'] = result
+    return redirect('zones')
 
 
 @login_required
@@ -324,10 +400,10 @@ def server_error(request):
 
 @login_required
 @never_cache
-def domain_check(request):
-    from .forms import DomainCheckForm
+def domain_check_legacy(request):
+    from .forms import DomainLookupForm
     from .lookup import check_nameservers
-    form = DomainCheckForm(request.POST if request.method == 'POST' else None,
+    form = DomainLookupForm(request.POST if request.method == 'POST' else None,
                            initial={'name': request.GET.get('name', '')[:253]})
     result = zone = None
     if request.method == 'POST' and form.is_valid():

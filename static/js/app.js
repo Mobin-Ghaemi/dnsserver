@@ -87,6 +87,35 @@
   };
   initRecordForm();
 
+  document.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-domain-check]');
+    if (!form) return;
+    event.preventDefault();
+    const container = form.closest('.zone-card') || form.closest('.domain-inspector');
+    const output = $('[data-domain-check-result]', container);
+    const button = $('button[type=submit]', form);
+    const original = button.innerHTML;
+    button.disabled = true;
+    button.textContent = 'در حال بررسی…';
+    output.setAttribute('aria-busy', 'true');
+    try {
+      const response = await fetch(form.action, {method:'POST', body:new FormData(form), credentials:'same-origin', headers:{'Accept':'application/json'}});
+      if (response.redirected) { location.assign(response.url); return; }
+      if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('بررسی انجام نشد؛ نشست و دسترسی خود را بررسی کنید.');
+      const result = await response.json();
+      output.innerHTML = result.html;
+      const indicator = $('.ns-status-indicator', container);
+      if (indicator && result.result?.label) {
+        indicator.className = 'ns-status-indicator ns-' + result.result.status;
+        indicator.textContent = result.result.label;
+      }
+      if (result.result?.added) { location.assign('/domains/'); return; }
+      if (!container.classList.contains('zone-card')) output.scrollIntoView({block:'nearest',behavior:'smooth'});
+    } catch (error) {
+      output.textContent = error.message || 'ارتباط با پنل برقرار نشد. دوباره تلاش کنید.';
+    } finally { button.disabled = false; button.innerHTML = original; output.removeAttribute('aria-busy'); }
+  });
+
   const dialog = $('#app-modal');
   const modalBody = $('[data-modal-body]');
   let modalLoad;
