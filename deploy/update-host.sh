@@ -8,6 +8,14 @@ exec 9> .git/orbit-update.lock
 flock -n 9 || { echo 'An update is running.' >&2; exit 1; }
 [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || { echo 'Commit or stash source changes first.' >&2; exit 1; }
 git rev-parse --abbrev-ref '@{upstream}' >/dev/null
+if ! GIT_TERMINAL_PROMPT=0 git fetch origin; then
+  echo 'اتصال به GitHub برقرار نشد. کلید دسترسی مخزن را تنظیم کنید؛ آپدیت اجرا نشد.' >&2
+  exit 1
+fi
+if ! git merge-base --is-ancestor HEAD '@{upstream}'; then
+  echo 'کامیت‌های محلی هنوز روی upstream نیستند؛ ابتدا git push انجام دهید. کد محلی حفظ شد.' >&2
+  exit 1
+fi
 previous=$(git rev-parse HEAD)
 backup="/srv/dns/snapshots/orbit-update-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -m 700 "$backup"
@@ -17,7 +25,7 @@ cp -a /etc/bind "$backup/bind"
 cp -a /var/lib/orbit-bind "$backup/bridge"
 printf '%s\n' "$previous" > "$backup/commit"
 trap 'echo "Update failed; inspect services. Backup: $backup; old source: $previous. Database rollback requires a matching restore." >&2' ERR
-git pull --ff-only
+git merge --ff-only '@{upstream}'
 rsync -a --exclude='/.git/' --exclude='/.venv/' --exclude='/.env' --exclude='/data/' --exclude='/backups/' --exclude='/staticfiles/' ./ /opt/orbit-dns/
 cd /opt/orbit-dns
 .venv/bin/python -m pip install -r requirements.txt

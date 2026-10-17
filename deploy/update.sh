@@ -11,6 +11,14 @@ flock -n 9 || { echo 'An update is already running.' >&2; exit 1; }
 [[ -f .env ]] || { echo 'Run deploy/install.sh first.' >&2; exit 1; }
 [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || { echo 'Commit or stash local source changes before updating.' >&2; exit 1; }
 git rev-parse --abbrev-ref '@{upstream}' >/dev/null
+if ! GIT_TERMINAL_PROMPT=0 git fetch origin; then
+  echo 'اتصال به GitHub برقرار نشد. کلید دسترسی مخزن را تنظیم کنید؛ آپدیت اجرا نشد.' >&2
+  exit 1
+fi
+if ! git merge-base --is-ancestor HEAD '@{upstream}'; then
+  echo 'کامیت‌های محلی هنوز روی upstream نیستند؛ ابتدا git push انجام دهید. کد محلی حفظ شد.' >&2
+  exit 1
+fi
 previous=$(git rev-parse HEAD)
 mkdir -p backups
 backup="backups/$(date -u +%Y%m%dT%H%M%SZ)-$previous"
@@ -20,7 +28,7 @@ cp .env "$backup/env"
 docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > "$backup/panel.sql"
 [[ -s "$backup/panel.sql" ]] || { echo 'Empty backup; update aborted.' >&2; exit 1; }
 trap 'echo "Update failed. Backup: $backup. Previous commit: $previous. Check logs; migrations may require database restoration before rollback." >&2' ERR
-git pull --ff-only
+git merge --ff-only '@{upstream}'
 docker compose config --quiet
 docker compose build web
 docker compose up -d --wait --wait-timeout 180

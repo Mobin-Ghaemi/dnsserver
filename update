@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+case "${1:-}" in
+  -h|--help)
+    echo 'Usage: update [--host|--docker]'
+    echo 'Automatically selects the native installation on this server; otherwise Docker Compose.'
+    exit 0 ;;
+  --host) shift; exec ./deploy/update.sh --host "$@" ;;
+  --docker) shift; exec ./deploy/update.sh "$@" ;;
+  '')
+    if [[ -f /opt/orbit-dns/.env ]] && systemctl cat orbit-dns.service >/dev/null 2>&1; then
+      exec ./deploy/update.sh --host
+    fi
+    exec ./deploy/update.sh ;;
+  *) echo 'Unknown option. Run update --help.' >&2; exit 2 ;;
+esac
