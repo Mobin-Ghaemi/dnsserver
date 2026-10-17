@@ -1,0 +1,7 @@
+[Unit]
+Description=Renew the direct IP certificate for Orbit DNS
+After=network-online.target nginx.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/opt/orbit-certbot/bin/certbot renew --config-dir /etc/letsencrypt-orbit-ip --work-dir /var/lib/letsencrypt-orbit-ip --logs-dir /var/log/letsencrypt-orbit-ip --quiet --no-random-sleep-on-renew

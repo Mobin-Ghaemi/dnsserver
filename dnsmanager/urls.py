@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('domains/', views.zone_list, name='zones'),
+    path('domains/check/', views.domain_check, name='domain_check'),
     path('domains/new/', views.zone_form, name='zone_create'),
     path('domains/discover/', views.discover, name='discover'),
     path('domains/<int:pk>/', views.zone_detail, name='zone_detail'),

@@ -1,0 +1,16 @@
+[Unit]
+Description=Local BIND management bridge for Orbit DNS
+After=named.service
+Requires=named.service
+[Service]
+EnvironmentFile=/var/lib/orbit-bind/bridge.env
+ExecStart=/opt/orbit-dns/.venv/bin/python /opt/orbit-dns/deploy/bind_bridge.py
+Restart=on-failure
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/etc/bind/startup /var/lib/orbit-bind
+[Install]
+WantedBy=multi-user.target

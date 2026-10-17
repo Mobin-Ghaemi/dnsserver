@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}بررسی اتصال دامنه{% endblock %}{% block crumb %}بررسی دامنه{% endblock %}
+{% block content %}
+<section class="page-heading"><div><h1>بررسی اتصال دامنه</h1><p>دامنه را وارد کنید تا NS آن از دو resolver عمومی بررسی شود.</p></div></section>
+<section class="panel"><form method="post">{% csrf_token %}{% include 'form_fields.html' %}<button class="button primary">بررسی دامنه</button></form>
+<p>نام‌سرورهای مجاز:</p>{% for ns in expected_nameservers %}<p><code>{{ ns }}</code></p>{% endfor %}
+<p>استفاده از یک جفت یا هر چهار NS پذیرفته می‌شود؛ تمام NSهای پاسخ باید از این فهرست باشند.</p></section>
+{% if result %}<section class="panel"><h2 dir="ltr">{{ result.name }}</h2>
+{% if result.matched %}<p class="message success">NSهای مشاهده‌شده در هر دو resolver با نام‌سرورهای شما مطابقت دارند.</p>{% else %}<p class="message error">اتصال تأیید نشد؛ پاسخ‌ها را بررسی کنید و پس از تغییر NS و انقضای کش دوباره تلاش کنید.</p>{% endif %}
+{% for row in result.observations %}<h3 dir="ltr">{{ row.resolver }}</h3>{% for ns in row.nameservers %}<p><code>{{ ns }}</code></p>{% endfor %}{% if row.error %}<p>{{ row.error }}</p>{% endif %}{% endfor %}
+{% if zone %}<a class="button primary" href="{% url 'zone_detail' zone.pk %}">مدیریت رکورد A و ساب‌دامین</a>{% elif result.matched %}<a class="button primary" href="{% url 'zone_create' %}?name={{ result.name|urlencode }}">افزودن دامنه به پنل</a>{% endif %}
+<p>این بررسی، پاسخ کش‌شدهٔ NS را نشان می‌دهد؛ اثبات مالکیت دامنه، بررسی مستقیم delegation در رجیستری یا سلامت همهٔ سرورهای authoritative نیست. نتیجه تا ۶۰ ثانیه کش می‌شود.</p></section>{% endif %}
+<p>فهرست دامنه‌های موجود از API سرور PowerDNS دریافت می‌شود؛ NS عمومی امکان فهرست‌کردن تمام دامنه‌ها را نمی‌دهد. بررسی NS هیچ رکوردی ایجاد یا منتشر نمی‌کند.</p>
+<a href="{% url 'zones' %}" class="text-link">بازگشت به دامنه‌ها</a>
+{% endblock %}

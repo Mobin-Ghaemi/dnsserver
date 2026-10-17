@@ -449,3 +449,61 @@ class HTTPContractTests(TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)
+
+
+@override_settings(DNS_NAMESERVERS=['ns1.melkata.ir.', 'ns2.melkata.ir.', 'ns1.ezfile.ir.', 'ns2.ezfile.ir.'])
+class PublicNSCheckTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def answer(self, *names, owner='example.com.'):
+        import dns.name
+        answer = Mock()
+        answer.rrset.name = dns.name.from_text(owner)
+        answer.__iter__ = Mock(return_value=iter([Mock(target=dns.name.from_text(ns)) for ns in names]))
+        return answer
+
+    def check(self, answers):
+        from .lookup import check_nameservers
+        with patch('dnsmanager.lookup.dns.resolver.Resolver') as factory:
+            factory.return_value.resolve.side_effect = answers
+            return check_nameservers('example.com')
+
+    def test_pair_and_four_nameservers(self):
+        from django.core.cache import cache
+        for names in [('ns1.melkata.ir.', 'ns2.melkata.ir.'),
+                      ('ns1.melkata.ir.', 'ns2.melkata.ir.', 'ns1.ezfile.ir.', 'ns2.ezfile.ir.')]:
+            cache.clear()
+            self.assertTrue(self.check([self.answer(*names), self.answer(*names)])['matched'])
+
+    def test_foreign_single_and_disagreeing_answers(self):
+        from django.core.cache import cache
+        for names in [('ns1.melkata.ir.',), ('ns1.melkata.ir.', 'ns.attacker.test.')]:
+            cache.clear()
+            self.assertFalse(self.check([self.answer(*names), self.answer(*names)])['matched'])
+        cache.clear()
+        self.assertFalse(self.check([self.answer('ns1.melkata.ir.', 'ns2.melkata.ir.'),
+                                     self.answer('ns1.ezfile.ir.', 'ns2.ezfile.ir.')])['matched'])
+
+    def test_timeout_nxdomain_and_alias_are_not_success(self):
+        import dns.exception
+        import dns.resolver
+        self.assertFalse(self.check([dns.exception.Timeout(), dns.resolver.NXDOMAIN()])['matched'])
+        from django.core.cache import cache
+        cache.clear()
+        self.assertFalse(self.check([self.answer('ns1.melkata.ir.', 'ns2.melkata.ir.', owner='other.test.'),
+                                     dns.resolver.NoAnswer()])['matched'])
+
+    @override_settings(STORAGES=TEST_STORAGES, DNS_AUTO_DISCOVERY=False)
+    def test_view_requires_login_validates_input_and_does_not_create_zone(self):
+        self.assertEqual(self.client.get('/domains/check/').status_code, 302)
+        user = User.objects.create_user('ns-checker', password=PASSWORD)
+        self.client.force_login(user)
+        with patch('dnsmanager.lookup.check_nameservers') as check:
+            self.assertEqual(self.client.post('/domains/check/', {'name': 'https://bad.com'}).status_code, 200)
+            check.assert_not_called()
+            check.return_value = {'name': 'example.com', 'matched': True, 'observations': []}
+            result = self.client.post('/domains/check/', {'name': 'example.com'})
+            self.assertContains(result, 'افزودن دامنه به پنل')
+            self.assertFalse(Zone.objects.exists())

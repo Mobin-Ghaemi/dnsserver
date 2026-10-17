@@ -110,7 +110,7 @@ if not PDNS_API_KEY and not PDNS_API_URL:
 elif PDNS_API_KEY and not PDNS_API_URL:
     PDNS_API_URL = 'http://127.0.0.1:8081/api/v1'
 PDNS_SERVER_ID = os.getenv('PDNS_SERVER_ID', 'localhost')
-DNS_NAMESERVERS = [s.strip().rstrip('.').lower() + '.' for s in os.getenv('DNS_NAMESERVERS', 'ns1.example.net,ns2.example.net').split(',') if s.strip()]
+DNS_NAMESERVERS = [s.strip().rstrip('.').lower() + '.' for s in os.getenv('DNS_NAMESERVERS', 'ns1.melkata.ir,ns2.melkata.ir,ns1.ezfile.ir,ns2.ezfile.ir').split(',') if s.strip()]
 PDNS_TIMEOUT = 10
 DNS_AUTO_DISCOVERY = flag('DNS_AUTO_DISCOVERY', True)
 DNS_DISCOVERY_OWNER = os.getenv('DNS_DISCOVERY_OWNER', '')

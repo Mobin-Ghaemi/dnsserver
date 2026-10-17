@@ -1,15 +1,15 @@
 {% load static %}<!doctype html>
 <html lang="fa" dir="rtl" data-theme="dark">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark light"><meta name="theme-color" content="#101318">
-<title>{% block title %}نمای کلی{% endblock %} · Orbit DNS</title>
+<title>{% block title %}نمای کلی{% endblock %} · faral dns server</title>
 <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml"><link rel="preload" href="{% static 'fonts/Vazirmatn-Regular.woff2' %}" as="font" type="font/woff2" crossorigin>
 <script src="{% static 'js/theme.js' %}"></script><link rel="stylesheet" href="{% static 'css/app.css' %}"><script src="{% static 'js/app.js' %}" defer></script>
 {% block head %}{% endblock %}</head>
 <body>{% include 'icons.html' %}<a class="skip-link" href="#content">رفتن به محتوا</a>
 <div class="nav-scrim" data-close-nav></div>
 <aside class="sidebar" id="sidebar" aria-label="منوی اصلی">
-  <a class="brand" href="{% url 'dashboard' %}"><span class="brand-mark"><span></span></span><span class="brand-word" dir="ltr">orbit<span>dns</span><small>DOMAIN CONTROL CENTER</small></span></a>
-  <div class="workspace"><span class="workspace-icon">O</span><div><strong>فضای مدیریت شما</strong><small>کنسول DNS اختصاصی</small></div><span class="workspace-dot"></span></div>
+  <a class="brand" href="{% url 'dashboard' %}"><span class="brand-mark"><span></span></span><span class="brand-word" dir="ltr">faral<span> dns server</span><small>DOMAIN CONTROL CENTER</small></span></a>
+  <div class="workspace"><span class="workspace-icon">F</span><div><strong>فضای مدیریت شما</strong><small>کنسول DNS اختصاصی</small></div><span class="workspace-dot"></span></div>
   <span class="nav-label">مدیریت زیرساخت</span>
   <nav>
     <a href="{% url 'dashboard' %}" class="nav-item {% if nav_section == 'dashboard' %}active{% endif %}">{% include 'icon.html' with name='grid' %}<span>نمای کلی</span>{% if nav_section == 'dashboard' %}<i></i>{% endif %}</a>
@@ -32,7 +32,7 @@
 {% if messages %}<div class="messages" aria-live="polite">{% for message in messages %}<div class="message {{ message.tags }}">{% include 'icon.html' with name='info' %}<span>{{ message }}</span><button type="button" data-dismiss-message aria-label="بستن پیام">×</button></div>{% endfor %}</div>{% endif %}
 {% include 'dnsmanager/discovery_banner.html' %}
 {% block content %}{% endblock %}
-<footer class="footer"><span><span class="footer-dot"></span> Orbit DNS <span class="muted">/</span> کنترل در دستان شماست.</span><a href="{% url 'guide' %}">راهنمای کنسول {% include 'icon.html' with name='arrow' %}</a></footer>
+<footer class="footer"><span><span class="footer-dot"></span> faral dns server <span class="muted">/</span> کنترل در دستان شماست.</span><a href="{% url 'guide' %}">راهنمای کنسول {% include 'icon.html' with name='arrow' %}</a></footer>
 </main></div><div class="toast" id="toast" role="status" aria-live="polite"></div>
-<dialog class="app-modal" id="app-modal" aria-labelledby="modal-title"><div class="modal-header"><div><span class="eyebrow">ORBIT DNS</span><h2 id="modal-title">در حال دریافت…</h2></div><button type="button" class="modal-close icon-button" data-close-modal aria-label="بستن پنجره">×</button></div><div class="modal-body" data-modal-body></div></dialog>
+<dialog class="app-modal" id="app-modal" aria-labelledby="modal-title"><div class="modal-header"><div><span class="eyebrow">faral dns server</span><h2 id="modal-title">در حال دریافت…</h2></div><button type="button" class="modal-close icon-button" data-close-modal aria-label="بستن پنجره">×</button></div><div class="modal-body" data-modal-body></div></dialog>
 </body></html>

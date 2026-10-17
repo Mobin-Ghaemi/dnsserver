@@ -69,7 +69,7 @@ def zone_list(request):
 @login_required
 def zone_form(request, pk=None):
     zone = owned(request, pk) if pk else Zone(owner=request.user)
-    form = ZoneForm(request.POST or None, instance=zone)
+    form = ZoneForm(request.POST or None, instance=zone, initial={'name': request.GET.get('name', '')[:253]} if not pk else None)
     if request.method == 'POST' and form.is_valid():
         try:
             with transaction.atomic():
@@ -215,7 +215,7 @@ def zone_delete(request, pk):
 @never_cache
 def zone_export(request, pk):
     zone = owned(request, pk)
-    lines = [f'; ORBIT DNS — draft revision {zone.revision}', '; Disabled records are commented out.',
+    lines = [f'; faral dns server — draft revision {zone.revision}', '; Disabled records are commented out.',
              f'$ORIGIN {zone.name}.', f'$TTL {zone.default_ttl}',
              f'@ IN SOA {zone.nameservers[0] if zone.nameservers else "ns1.example.net."} hostmaster.{zone.name}. ( {zone.revision} 10800 3600 604800 3600 )']
     for ns in zone.nameservers:
@@ -320,3 +320,20 @@ def not_found(request, exception):
 
 def server_error(request):
     return render(request, 'error.html', {'code': '500', 'error_title': 'خطایی در سرور رخ داد. دوباره تلاش کنید.'}, status=500)
+
+
+@login_required
+@never_cache
+def domain_check(request):
+    from .forms import DomainCheckForm
+    from .lookup import check_nameservers
+    form = DomainCheckForm(request.POST if request.method == 'POST' else None,
+                           initial={'name': request.GET.get('name', '')[:253]})
+    result = zone = None
+    if request.method == 'POST' and form.is_valid():
+        result = check_nameservers(form.cleaned_data['name'])
+        zone = Zone.objects.filter(name=result['name'], owner=request.user).first()
+    return render(request, 'dnsmanager/domain_check.html', {
+        'form': form, 'result': result, 'zone': zone,
+        'expected_nameservers': settings.DNS_NAMESERVERS,
+    })

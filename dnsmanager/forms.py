@@ -60,3 +60,16 @@ class RecordForm(StyledForm, forms.ModelForm):
         if not self.instance.pk:
             self.initial['ttl'] = zone.default_ttl
         self.style()
+
+
+class DomainCheckForm(StyledForm, forms.Form):
+    name = forms.CharField(label='نام دامنه', max_length=253,
+                           widget=forms.TextInput(attrs={'placeholder': 'example.com'}))
+
+    def clean_name(self):
+        from .dns import zone_name
+        return zone_name(self.cleaned_data['name'])
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.style()
