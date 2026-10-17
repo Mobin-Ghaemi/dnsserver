@@ -1,0 +1,13 @@
+<div data-modal-content data-modal-title="{% if form_kind == 'zone' %}{% if editing %}ویرایش دامنه{% else %}افزودن دامنه{% endif %}{% else %}{% if editing %}ویرایش رکورد DNS{% else %}افزودن رکورد DNS{% endif %}{% endif %}">
+{% if form_kind == 'zone' %}
+  <p class="modal-description">{% if editing %}تنظیمات <bdi>{{ zone.name }}</bdi> را ویرایش کنید.{% else %}دامنه را اضافه کنید؛ در قدم بعد نام‌سرورها را برای اتصال دریافت می‌کنید.{% endif %}</p>
+{% else %}
+  <p class="modal-description">رکوردهای <bdi>{{ zone.name }}</bdi> · تغییرات پس از انتشار روی DNS اعمال می‌شوند.</p>
+{% endif %}
+<form action="{{ submit_url }}" method="post" data-modal-form {% if form_kind == 'record' %}class="record-form" data-record-form data-zone="{{ zone.name }}"{% endif %}>
+  {% csrf_token %}
+  {% include 'form_fields.html' %}
+  {% if form_kind == 'record' %}<div class="modal-record-help"><strong data-record-title></strong><p data-record-description></p><code dir="ltr" data-record-example></code><div class="modal-preview"><span>نام کامل:</span> <code data-record-preview>{{ zone.name }}.</code></div></div>{% endif %}
+  <div class="form-actions"><button class="button primary" type="submit">{% include 'icon.html' with name='check' %} {% if form_kind == 'zone' %}{% if editing %}ذخیرهٔ تغییرات{% else %}افزودن دامنه و نمایش NS{% endif %}{% else %}ذخیرهٔ رکورد{% endif %}</button><button class="button ghost" type="button" data-close-modal>انصراف</button></div>
+</form>
+</div>

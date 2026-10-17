@@ -1,0 +1,22 @@
+# Alternative to Docker. Adjust paths and user to your installation.
+[Unit]
+Description=Orbit DNS management panel
+After=network.target
+
+[Service]
+User=orbit
+Group=orbit
+WorkingDirectory=/opt/orbit-dns
+EnvironmentFile=/opt/orbit-dns/.env
+ExecStart=/opt/orbit-dns/.venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout 120 --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/orbit-dns/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+<div data-modal-content data-modal-title="دریافت نسخهٔ سرور">
+  <p class="modal-description">رکوردهای پنل برای <bdi>{{ zone.name }}</bdi> با نسخهٔ فعلی سرور جایگزین می‌شوند. تغییرات منتشرنشدهٔ این دامنه کنار گذاشته می‌شوند. این کار تنظیمات DNS سرور را تغییر نمی‌دهد.</p>
+  {% if error %}<div class="form-errors" role="alert">{{ error }}</div>{% endif %}
+  <form action="{% url 'zone_pull' zone.pk %}" method="post" data-modal-form>{% csrf_token %}<input type="hidden" name="revision" value="{{ zone.revision }}">
+    <div class="form-field"><label for="pull_confirm_name">برای تأیید کنارگذاشتن پیش‌نویس، نام دامنه را وارد کنید:</label><input id="pull_confirm_name" class="input" name="confirm_name" dir="ltr" required autocomplete="off" placeholder="{{ zone.name }}"></div>
+    <div class="form-actions"><button class="button primary" type="submit">دریافت نسخهٔ سرور</button><button class="button ghost" type="button" data-close-modal>انصراف</button></div>
+  </form>
+</div>

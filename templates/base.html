@@ -1,0 +1,38 @@
+{% load static %}<!doctype html>
+<html lang="fa" dir="rtl" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark light"><meta name="theme-color" content="#101318">
+<title>{% block title %}نمای کلی{% endblock %} · Orbit DNS</title>
+<link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml"><link rel="preload" href="{% static 'fonts/Vazirmatn-Regular.woff2' %}" as="font" type="font/woff2" crossorigin>
+<script src="{% static 'js/theme.js' %}"></script><link rel="stylesheet" href="{% static 'css/app.css' %}"><script src="{% static 'js/app.js' %}" defer></script>
+{% block head %}{% endblock %}</head>
+<body>{% include 'icons.html' %}<a class="skip-link" href="#content">رفتن به محتوا</a>
+<div class="nav-scrim" data-close-nav></div>
+<aside class="sidebar" id="sidebar" aria-label="منوی اصلی">
+  <a class="brand" href="{% url 'dashboard' %}"><span class="brand-mark"><span></span></span><span class="brand-word" dir="ltr">orbit<span>dns</span><small>DOMAIN CONTROL CENTER</small></span></a>
+  <div class="workspace"><span class="workspace-icon">O</span><div><strong>فضای مدیریت شما</strong><small>کنسول DNS اختصاصی</small></div><span class="workspace-dot"></span></div>
+  <span class="nav-label">مدیریت زیرساخت</span>
+  <nav>
+    <a href="{% url 'dashboard' %}" class="nav-item {% if nav_section == 'dashboard' %}active{% endif %}">{% include 'icon.html' with name='grid' %}<span>نمای کلی</span>{% if nav_section == 'dashboard' %}<i></i>{% endif %}</a>
+    <a href="{% url 'zones' %}" class="nav-item {% if 'zone' in nav_section or 'record' in nav_section %}active{% endif %}">{% include 'icon.html' with name='globe' %}<span>دامنه‌های من</span></a>
+    <a href="{% url 'activity' %}" class="nav-item {% if nav_section == 'activity' %}active{% endif %}">{% include 'icon.html' with name='clock' %}<span>تاریخچهٔ فعالیت</span></a>
+    <a href="{% url 'connection' %}" class="nav-item {% if nav_section == 'connection' %}active{% endif %}">{% include 'icon.html' with name='server' %}<span>اتصال سرور</span><span class="tiny-dot {% if pdns_configured %}green{% endif %}"></span></a>
+  </nav>
+  <span class="nav-label second-label">فضای کاربری</span>
+  <nav>
+    <a href="{% url 'password_change' %}" class="nav-item {% if 'password' in nav_section %}active{% endif %}">{% include 'icon.html' with name='shield' %}<span>امنیت حساب</span></a>
+    <a href="{% url 'guide' %}" class="nav-item {% if nav_section == 'guide' %}active{% endif %}">{% include 'icon.html' with name='book' %}<span>راهنمای استفاده</span></a>
+    {% if user.is_staff %}<a href="{% url 'admin:index' %}" class="nav-item">{% include 'icon.html' with name='key' %}<span>مدیریت کاربران</span><span class="external-arrow">↗</span></a>{% endif %}
+  </nav>
+  <div class="sidebar-bottom"><div class="server-chip"><span class="pulse-dot {% if pdns_configured %}green{% endif %}"></span><div><strong>{% if pdns_configured %}آمادهٔ آزمایش اتصال{% else %}حالت پیش‌نویس{% endif %}</strong><small>{% if pdns_configured %}PowerDNS API تنظیم شده{% else %}سرویس DNS متصل نشده{% endif %}</small></div><a href="{% url 'connection' %}" aria-label="مشاهده اتصال">{% include 'icon.html' with name='chevron' %}</a></div>
+  <div class="sidebar-user"><span class="avatar">{{ user.username|first|upper }}</span><div><strong>{{ user.get_full_name|default:user.username }}</strong><small>{% if user.is_staff %}مدیر سامانه{% else %}کاربر{% endif %}</small></div><form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="icon-button" title="خروج از حساب" aria-label="خروج از حساب">{% include 'icon.html' with name='logout' %}</button></form></div></div>
+</aside>
+<div class="app-main"><header class="topbar"><div class="breadcrumb"><button class="icon-button mobile-menu" data-toggle-nav aria-label="باز کردن منو" aria-expanded="false" aria-controls="sidebar">{% include 'icon.html' with name='menu' %}</button><span class="crumb-home">کنسول مدیریت</span><span class="crumb-divider">/</span><strong>{% block crumb %}نمای کلی{% endblock %}</strong></div>
+<div class="topbar-actions"><form action="{% url 'zones' %}" class="global-search" role="search">{% include 'icon.html' with name='search' %}<input name="q" type="search" placeholder="جست‌وجوی دامنه…" aria-label="جست‌وجوی دامنه" data-global-search><kbd>/</kbd></form><span class="topbar-line"></span><button class="icon-button" data-theme-toggle title="تغییر ظاهر" aria-label="تغییر ظاهر روشن و تیره">{% include 'icon.html' with name='sun' %}</button><span class="mini-avatar" title="{{ user.username }}">{{ user.username|first|upper }}</span></div></header>
+<main id="content" class="content">
+{% if messages %}<div class="messages" aria-live="polite">{% for message in messages %}<div class="message {{ message.tags }}">{% include 'icon.html' with name='info' %}<span>{{ message }}</span><button type="button" data-dismiss-message aria-label="بستن پیام">×</button></div>{% endfor %}</div>{% endif %}
+{% include 'dnsmanager/discovery_banner.html' %}
+{% block content %}{% endblock %}
+<footer class="footer"><span><span class="footer-dot"></span> Orbit DNS <span class="muted">/</span> کنترل در دستان شماست.</span><a href="{% url 'guide' %}">راهنمای کنسول {% include 'icon.html' with name='arrow' %}</a></footer>
+</main></div><div class="toast" id="toast" role="status" aria-live="polite"></div>
+<dialog class="app-modal" id="app-modal" aria-labelledby="modal-title"><div class="modal-header"><div><span class="eyebrow">ORBIT DNS</span><h2 id="modal-title">در حال دریافت…</h2></div><button type="button" class="modal-close icon-button" data-close-modal aria-label="بستن پنجره">×</button></div><div class="modal-body" data-modal-body></div></dialog>
+</body></html>

@@ -1,0 +1,9 @@
+<div class="ns-setup" data-modal-content data-modal-title="دامنه اضافه شد؛ حالا متصلش کنید.">
+  <div class="ns-success">{% include 'icon.html' with name='check' %}<span dir="ltr">{{ zone.name }}</span></div>
+  <h3>این نام‌سرورها را برای دامنه تنظیم کنید</h3>
+  <p>در پنل سایتی که دامنه را از آن خریده‌اید، بخش «نام‌سرورها / Nameservers» را باز کنید و NSهای قبلی را با این مقادیر جایگزین کنید.</p>
+  <div class="nameserver-list">{% for ns in nameservers %}<div><span>NS{{ forloop.counter }}</span><code>{{ ns }}</code><button type="button" class="icon-button" data-copy="{{ ns }}" aria-label="کپی {{ ns }}">{% include 'icon.html' with name='copy' %}</button></div>{% endfor %}</div>
+  <div class="info-box">{% if 'ns1.example.net.' in nameservers %}نام‌سرورهای فعلی نمونه‌اند. مدیر سرور باید ابتدا نام‌سرورهای واقعی را تنظیم کند؛ مقادیر نمونه را در ثبت‌کننده وارد نکنید.{% else %}قبل از تغییر NS، رکوردهای دامنه را روی سرور منتشر کنید. اتصال عمومی بعد از تنظیم صحیح نام‌سرورها و به‌روزرسانی کش DNS برقرار می‌شود.{% endif %}</div>
+  <div class="ns-setup-steps"><span>۱. ساخت و انتشار رکوردها</span><span>۲. تنظیم NS در ثبت‌کننده</span><span>۳. بررسی پاسخ DNS</span></div>
+  <div class="form-actions"><a href="{% url 'zone_detail' zone.pk %}" class="button primary">مدیریت رکوردهای دامنه {% include 'icon.html' with name='arrow' %}</a><button type="button" class="button secondary" data-close-modal>متوجه شدم</button></div>
+</div>

@@ -1,0 +1,1 @@
+{% extends 'registration/auth_base.html' %}{% block title %}{{ code }}{% endblock %}{% block content %}<div class="error-code">{{ code }}</div><h1>{{ error_title }}</h1><p class="auth-description">به کنسول برگردید و دوباره تلاش کنید.</p><a class="button primary" href="{% url 'dashboard' %}">بازگشت به کنسول {% include 'icon.html' with name='arrow' %}</a>{% endblock %}
