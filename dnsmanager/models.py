@@ -24,6 +24,7 @@ class Zone(models.Model):
     unmanaged_rrsets = models.JSONField(default=list, blank=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
     sync_note = models.CharField(max_length=500, blank=True)
+    ns_check = models.JSONField(default=dict, blank=True)
     publish_token = models.UUIDField(null=True, editable=False)
     publishing_until = models.DateTimeField(null=True, editable=False)
     last_published_at = models.DateTimeField(null=True, blank=True)
@@ -61,6 +62,10 @@ class Zone(models.Model):
         from .configuration import default_nameservers
         return self.detected_nameservers or default_nameservers()
 
+    @property
+    def website_url(self):
+        return 'https://' + self.name + '/'
+
 
 class Record(models.Model):
     zone = models.ForeignKey(Zone, on_delete=models.CASCADE, related_name='records')
@@ -85,6 +90,29 @@ class Record(models.Model):
     @property
     def fqdn(self):
         return self.zone.name + '.' if self.name == '@' else self.name + '.' + self.zone.name + '.'
+
+    @property
+    def full_name(self):
+        return self.fqdn.rstrip('.')
+
+    @property
+    def website_url(self):
+        if self.type not in ('A', 'AAAA', 'CNAME') or '*' in self.name or '_' in self.name:
+            return ''
+        return 'https://' + self.full_name + '/'
+
+    @property
+    def purpose(self):
+        if self.type == 'TXT':
+            if self.name.startswith('_dmarc') or self.content.startswith('v=DMARC1'):
+                return 'سیاست ایمیل · DMARC'
+            if '._domainkey' in self.name or self.content.startswith('v=DKIM1'):
+                return 'امضای ایمیل · DKIM'
+            if self.content.startswith('v=spf1'):
+                return 'مجوز ارسال ایمیل · SPF'
+            return 'متن و تأیید مالکیت'
+        return {'A': 'آدرس IPv4', 'AAAA': 'آدرس IPv6', 'CNAME': 'نام مستعار', 'MX': 'سرور ایمیل',
+                'NS': 'واگذاری زیردامنه', 'SRV': 'مقصد سرویس', 'CAA': 'مجوز صدور گواهی', 'PTR': 'DNS معکوس'}.get(self.type, self.type)
 
     @property
     def dns_content(self):

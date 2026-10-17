@@ -211,7 +211,7 @@ class PagesAndAccessTests(TestCase):
         self.assertEqual(self.zone.default_ttl, 300)
 
     def test_search_and_filters(self):
-        self.assertNotContains(self.client.get('/domains/?q=absent'), 'example.com')
+        self.assertEqual(list(self.client.get('/domains/?q=absent').context['page_obj']), [])
         self.assertNotContains(self.client.get(f'/domains/{self.zone.pk}/?type=TXT'), '192.0.2.1')
 
     def test_export_is_valid_zone_and_disabled_is_comment(self):

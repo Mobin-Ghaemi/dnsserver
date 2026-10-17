@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block title %}جزئیات رکورد{% endblock %}{% block crumb %}جزئیات رکورد{% endblock %}{% block content %}<a class="back-link" href="{% url 'zone_detail' zone.pk %}">بازگشت به رکوردها</a><section class="panel details-page">{% include 'dnsmanager/record_details.html' %}</section>{% endblock %}
