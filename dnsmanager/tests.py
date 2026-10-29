@@ -176,7 +176,8 @@ class PagesAndAccessTests(TestCase):
         self.assertEqual(secure.post(f'/domains/{self.zone.pk}/publish/', {'revision': 1}).status_code, 403)
         self.assertEqual(secure.post('/domains/new/', {'name': 'evil.example'}).status_code, 403)
 
-    def test_create_edit_toggle_delete_record_changes_revision(self):
+    @patch('dnsmanager.views.publish_zone')
+    def test_create_edit_toggle_delete_record_changes_revision(self, publish):
         path = f'/domains/{self.zone.pk}/records/new/'
         self.assertEqual(self.client.post(path, {'name': 'www', 'type': 'A', 'content': '192.0.2.5', 'ttl': 3600, 'enabled': 'on'}).status_code, 302)
         record = self.zone.records.get(name='www')

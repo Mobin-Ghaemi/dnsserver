@@ -2,7 +2,7 @@
 {% if form_kind == 'zone' %}
   <p class="modal-description">{% if editing %}تنظیمات <bdi>{{ zone.name }}</bdi> را ویرایش کنید.{% else %}دامنه را اضافه کنید؛ در قدم بعد نام‌سرورها را برای اتصال دریافت می‌کنید.{% endif %}</p>
 {% else %}
-  <p class="modal-description">رکوردهای <bdi>{{ zone.name }}</bdi> · تغییرات پس از انتشار روی DNS اعمال می‌شوند.</p>
+  <p class="modal-description">رکوردهای <bdi>{{ zone.name }}</bdi> · تغییرات پس از ذخیره روی سرور DNS اعمال می‌شوند.</p>
 {% endif %}
 <form action="{{ submit_url }}" method="post" data-modal-form {% if form_kind == 'record' %}class="record-form" data-record-form data-zone="{{ zone.name }}"{% endif %}>
   {% csrf_token %}

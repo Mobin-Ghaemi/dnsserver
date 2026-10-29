@@ -193,6 +193,18 @@ def domain_check(request, pk=None):
     return redirect('zones')
 
 
+def publish_record_changes(request, zone):
+    """Publish only after the record transaction has committed."""
+    zone.refresh_from_db()
+    try:
+        publish_zone(zone, request.user, zone.revision)
+    except (ProviderError, ZoneBusy) as error:
+        messages.error(request, f'تغییرات در پنل ذخیره شد، اما روی DNS اعمال نشد: {error} برای تلاش مجدد، انتشار دامنه را بزنید.')
+        return False
+    messages.success(request, 'تغییرات روی سرور DNS اعمال شد. پاسخ‌های کش‌شده تا پایان TTL ممکن است باقی بمانند.')
+    return True
+
+
 @login_required
 def record_form(request, pk, record_pk=None):
     zone = owned(request, pk)
@@ -207,10 +219,11 @@ def record_form(request, pk, record_pk=None):
                     record = form.save()
                     changed(locked)
                     audit(request.user, locked, 'ویرایش رکورد' if record_pk else 'افزودن رکورد', f'{record.name} · {record.type}')
-                    messages.success(request, 'رکورد ذخیره شد؛ برای اعمال تغییرات، دامنه را منتشر کنید.')
-                    if modal_request(request):
-                        return JsonResponse({'ok': True, 'redirect_url': reverse('zone_detail', args=[pk])})
-                    return redirect('zone_detail', pk=pk)
+            if not form.errors:
+                published = publish_record_changes(request, locked)
+                if modal_request(request):
+                    return JsonResponse({'ok': True, 'published': published, 'redirect_url': reverse('zone_detail', args=[pk])})
+                return redirect('zone_detail', pk=pk)
         except ZoneBusy as error:
             form.add_error(None, str(error))
         except IntegrityError:
@@ -231,7 +244,7 @@ def record_toggle(request, pk, record_pk):
             record.save(update_fields=['enabled', 'updated_at'])
             changed(zone)
             audit(request.user, zone, 'فعال‌سازی رکورد' if record.enabled else 'غیرفعال‌سازی رکورد', f'{record.name} · {record.type}')
-        messages.success(request, 'وضعیت رکورد ذخیره شد؛ انتشار دامنه لازم است.')
+        publish_record_changes(request, zone)
     except ZoneBusy as error:
         messages.error(request, str(error))
     return redirect('zone_detail', pk=pk)
@@ -249,7 +262,7 @@ def record_delete(request, pk, record_pk):
                 audit(request.user, zone, 'حذف رکورد', f'{record.name} · {record.type}')
                 record.delete()
                 changed(zone)
-            messages.success(request, 'رکورد حذف شد؛ برای حذف از DNS، دامنه را منتشر کنید.')
+            publish_record_changes(request, zone)
             return redirect('zone_detail', pk=pk)
         except ZoneBusy as error:
             messages.error(request, str(error))

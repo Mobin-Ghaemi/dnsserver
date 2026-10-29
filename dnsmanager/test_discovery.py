@@ -330,3 +330,41 @@ class DiscoveryHTTPTests(TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)
+
+@override_settings(STORAGES=TEST_STORAGES)
+class AutoPublishTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('auto-publish-owner')
+        self.zone = Zone.objects.create(owner=self.user, name='auto-publish.test')
+        self.client.force_login(self.user)
+
+    @patch('dnsmanager.views.publish_zone')
+    def test_create_edit_toggle_delete_publish_current_revision(self, publish):
+        data = {'name': 'www', 'type': 'A', 'content': '192.0.2.1', 'ttl': 300, 'enabled': 'on'}
+        root = f'/domains/{self.zone.pk}/records/'
+        result = self.client.post(root + 'new/', data, HTTP_X_ORBIT_MODAL='1')
+        self.assertTrue(result.json()['published'])
+        record = self.zone.records.get()
+        data['content'] = '192.0.2.2'
+        self.client.post(root + f'{record.pk}/', data)
+        self.client.post(root + f'{record.pk}/toggle/')
+        self.client.post(root + f'{record.pk}/delete/')
+        self.assertEqual(publish.call_count, 4)
+        self.assertEqual([call.args[2] for call in publish.call_args_list], [2, 3, 4, 5])
+        self.assertEqual(self.zone.records.count(), 0)
+
+    @patch('dnsmanager.views.publish_zone', side_effect=ProviderError('provider offline'))
+    def test_failure_preserves_record_and_reports_dns_not_applied(self, publish):
+        result = self.client.post(f'/domains/{self.zone.pk}/records/new/',
+            {'name': 'www', 'type': 'A', 'content': '192.0.2.1', 'ttl': 300, 'enabled': 'on'},
+            HTTP_X_ORBIT_MODAL='1')
+        self.assertFalse(result.json()['published'])
+        self.assertEqual(self.zone.records.count(), 1)
+        from django.contrib.messages import get_messages
+        self.assertTrue(any('روی DNS اعمال نشد' in str(m) for m in get_messages(result.wsgi_request)))
+
+    @patch('dnsmanager.views.publish_zone')
+    def test_invalid_record_never_publishes(self, publish):
+        self.client.post(f'/domains/{self.zone.pk}/records/new/',
+                         {'name': 'www', 'type': 'A', 'content': 'invalid', 'ttl': 300})
+        publish.assert_not_called()
